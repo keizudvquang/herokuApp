@@ -4,13 +4,11 @@ const PORT = process.env.PORT || 5000
 
 var pg = require('pg');
 pg.defaults.ssl = true;
+var pool = new pg.Client(process.env.DATABASE_URL);
 var bodyParser = require('body-parser');
 var app = express();
 var request = require('request');
-// var connection = pg.connect(process.env.DATABASE_URL, function(err, client) {
-// 		if (err) throw err;
-// 		connection = client;
-// 	});
+var connection = null;
 console.log('app start');
 app
   .use(express.static(path.join(__dirname, 'public')))
@@ -48,17 +46,22 @@ app.post('/api/login', function (req, res) {
 	    password: req.body.password
 	  }
 	}, 
-	function(error, response, body) {
+	async function(error, response, body){
 		var dt = JSON.parse(body);
 		if(dt["access_token"] !== undefined){
-		  	connection.query("SELECT id, name, canaccesscontact__c, canaccessorder__c FROM salesforce.User WHERE username ='" + req.body.username + "' ;", function(err, result) {
+			console.log('Login successfully');
+			await createConnection()
+		  	connection.query("SELECT id, name FROM salesforce.User WHERE username ='" + req.body.username + "' ;", function(err, result) {
 			 	if (err){
+			 		console.log('Cannot get User info');
 					res.send('false'); 
 				}else{ 
 					res.send(result.rows); 
 				}
 			});
+			
 		}else{
+			console.log('Login fail');
 			res.send('false');
 		}
 	});
@@ -67,3 +70,22 @@ app.post('/api/login', function (req, res) {
 app.get('/api/getTest/:id', function (request, response) {
 	console.log(request.params.id);
 });
+
+async function createConnection(){
+	return new Promise( resolve => {
+		if (connection == null){
+			console.log('Start connect to Heroku');
+			pool.connect(function(err, client, done) {
+				if (err) {
+					//console.log(err);
+					process.exit(1);
+				}
+				connection = client;
+				console.log('Heroku connected');
+				return resolve(true);
+			});
+		}else{
+			return resolve(true);
+		}
+	});
+}
