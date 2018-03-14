@@ -134,7 +134,7 @@
 		  	dataType: "json",
 		  	success: function (data, status, jqXHR) {
 		  		if(data != false){
-		  			alert("success");
+		  			alert("Welcome " + data[0].name);
 		  		}else{
 		  			alert("Email or password are not correct, please try!");
 		  		}
