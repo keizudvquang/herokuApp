@@ -1,4 +1,5 @@
 const express = require('express')
+const session = require('express-session');
 const path = require('path')
 const PORT = process.env.PORT || 5000
 
@@ -7,8 +8,15 @@ pg.defaults.ssl = true;
 var pool = new pg.Client(process.env.DATABASE_URL);
 var bodyParser = require('body-parser');
 var app = express();
+app.use(session({
+    secret: 'demo',
+    proxy: true,
+    resave: true,
+    saveUninitialized: true
+}));
 var request = require('request');
 var connection = null;
+var sess;
 console.log('app start');
 app
   .use(express.static(path.join(__dirname, 'public')))
@@ -51,6 +59,9 @@ app.post('/api/login', function (req, res) {
 		if(dt["access_token"] !== undefined){
 			console.log('Login successfully');
 			await createConnection()
+			sess = req.session;
+			sess.username = req.body.username;
+			sess.password = req.body.password;
 		  	connection.query("SELECT id, name FROM salesforce.User WHERE username ='" + req.body.username + "' ;", function(err, result) {
 			 	if (err){
 			 		console.log('Cannot get User info');
@@ -67,8 +78,80 @@ app.post('/api/login', function (req, res) {
 	});
 });
 
-app.get('/api/getTest/:id', function (request, response) {
-	console.log(request.params.id);
+app.get('/api/getContact', function(req, res){
+	console.log('getContact');
+	sess = req.session;
+	console.log(sess.username);
+	if(sess.username == undefined && sess.username == 1){
+		console.log('Not Authorization');
+		res.send("false"); 
+	}else{
+		connection.query('SELECT id, name, email FROM salesforce.Contact ;', function(err, result) {
+		 	if (err){
+		 		console.log(err);
+				res.send("false");
+			}else{ 
+				res.send(result.rows); 
+			}
+		});
+	}
+});
+
+app.get('/api/getOrder', function(req, res){
+	console.log('getOrder');
+	sess = req.session;
+	console.log(sess.username);
+	if(sess.username == undefined && sess.username == 1){
+		console.log('Not Authorization');
+		res.send("false"); 
+	}else{
+		connection.query('SELECT id, customername__c, productname__c FROM salesforce.Order__c ;', function(err, result) {
+		 	if (err){
+		 		console.log(err);
+				res.send("false");
+			}else{ 
+				res.send(result.rows); 
+			}
+		});
+	}
+});
+
+app.get('/api/order-detail/:id', function (request, response) {
+	console.log('order-detail');
+	var id = request.params.id;
+	if(id === ''){
+		response.send('fasle'); 
+	}
+  	connection.query("SELECT id, Order__c, CustomerName__c, ProductName__c,quantity__c,unitprice__c,orderdate__c FROM salesforce.Order__c WHERE id = " + id + " ;", function(err, result) {
+	 	if (err){
+			response.send("Error " + err); 
+		}else{
+
+			response.send(result.rows); 
+		}
+	});
+});
+
+app.post('/api/updateOrder', function(req, res){
+	var data = req.body;
+  	connection.query("UPDATE salesforce.Order__c SET customername__c = $1, productname__c = $2,quantity__c = $3,unitprice__c = $4,orderdate__c = $5 WHERE id = $6;",[data.customername__c, data.productname__c, data.quantity__c, data.unitprice__c, data.orderdate__c, data.id], function(err, result) {
+	 	if (err){
+			res.send("Error " + err); 
+		}else{ 
+			res.send('true'); 
+		}
+	});
+});
+
+app.post('/api/insertOrder', function(req, res){
+	var data = req.body;
+  	connection.query("INSERT INTO salesforce.Order__c(customername__c, productname__c, orderdate__c, quantity__c, unitprice__c) VALUES ($1, $2, $3, $4, $5);",[data.customername__c, data.productname__c, data.orderdate__c, data.quantity__c, data.unitprice__c], function(err, result) {
+	 	if (err){
+			res.send("Error " + err); 
+		}else{ 
+			res.send('true'); 
+		}
+	});
 });
 
 async function createConnection(){
